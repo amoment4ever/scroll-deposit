@@ -45,10 +45,9 @@ async function withdrawFromOkx(AMOUNT_ETH, ethAccount, SOURCE_CHAIN, sourceWeb3)
 }
 
 function getFristChain() {
-  return 'zkSync Era';
-  // const firtChain = sampleFromArray(['Optimism', 'Base', 'zkSync Era']);
+  const firtChain = sampleFromArray(['Optimism', 'Base', 'zkSync Era']);
 
-  // return firtChain;
+  return firtChain;
 }
 
 function getLastChain() {
