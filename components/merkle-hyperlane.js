@@ -34,10 +34,14 @@ class MerkleHyperlane {
       });
 
       if (estimateGas) {
-        const response = await method.send({
+        const data = method.encodeABI();
+
+        const response = await this.ethAccount.finalizeTransaction({
           from: this.ethAccount.address,
+          to: contractFrom.options.address,
           value: new BigNumber(amountInWei).plus(quote).toString(),
           gasPrice,
+          data,
           gas: new BigNumber(estimateGas).multipliedBy(1.2).toFixed(0),
         });
 

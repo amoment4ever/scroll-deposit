@@ -2,6 +2,7 @@ const { default: BigNumber } = require('bignumber.js');
 const { EthAccount } = require('../components/account');
 const { MerkleHyperlane } = require('../components/merkle-hyperlane');
 const { withdrawToken } = require('../components/okx');
+const { Orbiter } = require('../components/orbiter');
 const { RetroBridge } = require('../components/retro-bridge');
 const { ScrollBridge } = require('../components/scroll-bridge-main');
 const { web3sBaseList } = require('../components/web3-base');
@@ -54,6 +55,32 @@ function getLastChain() {
   return sampleFromArray(['Optimism', 'Base']);
 }
 
+async function doBridgeOrbiter(ethAccount, web3, scan, proxy, bridgeAmount, fromChain, toChain) {
+  const orbiter = new Orbiter(web3, proxy?.proxy);
+
+  return await retry(async () => {
+    const {
+      _sendValue,
+      to,
+    } = await orbiter.getBridgeAmount(fromChain, toChain, bridgeAmount);
+
+    const { gasPrice } = await ethAccount.getGasPrice();
+
+    const response = await ethAccount.finalizeTransaction({
+      from: ethAccount.address,
+      to,
+      value: _sendValue,
+      gasPrice,
+      gas: 21_000,
+    });
+
+    logger.info('Sent transaction Orbiter', {
+      hash: `${scan}/tx/${response?.transactionHash}`,
+      address: ethAccount.address,
+    });
+  }, 5, 20000);
+}
+
 async function mainAction(privateKey, depositOkxAddress) {
   const AMOUNT_ETH = +randomNumber(MIN_AMOUNT_ETH, MAX_AMOUNT_ETH).toFixed(5);
 
@@ -102,9 +129,9 @@ async function mainAction(privateKey, depositOkxAddress) {
   // const recieveAfterBridge = 0.0119595;
   const ethAccountETH = new EthAccount(privateKey, web3Eth);
 
-  const ehtereumBalance = new BigNumber(await ethAccountETH.getBalance()).div(1e18)
-  const leaveAmountEthereum =  +randomNumber(LEAVE_AMOUNT_ETHEREUM_MAX, LEAVE_AMOUNT_ETHEREUM_MIN).toFixed(5);
-  const depositScrollAmount = ehtereumBalance.minus(recieveAfterBridge).gte(leaveAmountEthereum) ? new BigNumber(recieveAfterBridge) :  ehtereumBalance.minus(leaveAmountEthereum)
+  const ehtereumBalance = new BigNumber(await ethAccountETH.getBalance()).div(1e18);
+  const leaveAmountEthereum = +randomNumber(LEAVE_AMOUNT_ETHEREUM_MAX, LEAVE_AMOUNT_ETHEREUM_MIN).toFixed(5);
+  const depositScrollAmount = ehtereumBalance.minus(recieveAfterBridge).gte(leaveAmountEthereum) ? new BigNumber(recieveAfterBridge) : ehtereumBalance.minus(leaveAmountEthereum);
 
   const scrollBridge = new ScrollBridge(web3Eth, ethAccountETH);
 
@@ -129,9 +156,9 @@ async function mainAction(privateKey, depositOkxAddress) {
   const { web3: web3LastChain, scan: scanLastChain, proxy: proxyLastChain } = web3ListLastChain.get();
   const lastChainEthAccount = new EthAccount(privateKey, web3LastChain, proxyLastChain, scanLastChain);
 
-  const scrollBalance = new BigNumber(await ethAccountScroll.getBalance()).div(1e18)
-  const leaveAmountScroll =  +randomNumber(LEAVE_AMOUNT_SCROLL_MIN, LEAVE_AMOUNT_ETHEREUM_MAX).toFixed(5);
-  const bridgeLastChainAmount =  scrollBalance.minus(depositScrollAmount).gte(leaveAmountScroll) ? new BigNumber(depositScrollAmount) :  scrollBalance.minus(leaveAmountScroll)
+  const scrollBalance = new BigNumber(await ethAccountScroll.getBalance()).div(1e18);
+  const leaveAmountScroll = +randomNumber(LEAVE_AMOUNT_SCROLL_MIN, LEAVE_AMOUNT_ETHEREUM_MAX).toFixed(5);
+  const bridgeLastChainAmount = scrollBalance.minus(depositScrollAmount).gte(leaveAmountScroll) ? new BigNumber(depositScrollAmount) : scrollBalance.minus(leaveAmountScroll);
 
   await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(2).toFixed(0));
   await sleepWithLog(15000);

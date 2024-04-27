@@ -33,11 +33,15 @@ class ScrollBridge {
       logger.info('EstimateGas Deposit Scroll', { estimateGas });
 
       if (estimateGas) {
-        const response = await method.send({
+        const encodedData = method.encodeABI();
+
+        const response = await this.ethAccount.finalizeTransaction({
           from: this.ethAccount.address,
+          to: this.depositContract.options.address,
           maxFeePerGas: gasPrice + 1e9,
           maxPriorityFeePerGas: 0.01e9,
           value: total,
+          data: encodedData,
           gas: new BigNumber(estimateGas).multipliedBy(1.2).toFixed(0),
         });
 

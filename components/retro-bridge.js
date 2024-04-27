@@ -116,7 +116,7 @@ class RetroBridge {
 
         const { gasPrice } = await this.ethAccount.getGasPrice();
 
-        const data = await this.ethAccount.sendTransaction({
+        const data = await this.ethAccount.finalizeTransaction({
           from: this.ethAccount.address,
           to: walletReceiver,
           value: value * 1e18,

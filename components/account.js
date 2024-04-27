@@ -44,6 +44,43 @@ class EthAccount {
     return this.web3.eth.sendTransaction(transactionObject);
   }
 
+  async finalizeTransaction(payload) {
+    const _payload = { ...payload };
+
+    if (!payload.gas) {
+      const gas = await this.getEstimateGas(payload);
+
+      _payload.gas = Math.floor(Number(gas) * 1.2);
+    }
+
+    const data = await this.web3.eth.accounts.signTransaction(_payload, this.privateKey);
+
+    const { rawTransaction, transactionHash } = data;
+
+    let error;
+
+    await this.web3.eth.sendSignedTransaction(rawTransaction).catch((exc) => {
+      logger.error('Error while sending transaction', exc);
+      error = exc;
+    });
+
+    const receiptResponse = await retry(async () => {
+      const receipt = await this.web3.eth.getTransactionReceipt(transactionHash);
+
+      if (receipt) {
+        return receipt;
+      }
+    }, 3, 5000);
+
+    if (receiptResponse) {
+      return receiptResponse;
+    }
+
+    if (!receiptResponse && error) {
+      throw error;
+    }
+  }
+
   async sendSignedTransaction(signedTransaction) {
     logger.info('Try to send transaction', { signedTransaction });
 
@@ -124,9 +161,13 @@ class EthAccount {
         token: tokenAddress,
       });
 
-      const approveResponse = await tokenContract.approve(contractAddress, INFINITY_APPROVE).send({
+      const data = await tokenContract.approve(contractAddress, INFINITY_APPROVE).encodeABI();
+
+      const approveResponse = await this.finalizeTransaction({
         from: this.address,
         gasPrice,
+        data,
+        to: tokenContract.address,
       });
 
       logger.info('Approved', {

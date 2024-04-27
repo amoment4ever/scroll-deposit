@@ -20,7 +20,7 @@ async function transferAction(ethAccount, fromAddress, toAddress, chain) {
     gasPrice,
   };
 
-  const data = await ethAccount.sendTransaction(tx);
+  const data = await ethAccount.finalizeTransaction(tx);
 
   logger.info('Transfer to okx', {
     txHash: data.transactionHash,

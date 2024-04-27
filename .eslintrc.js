@@ -33,5 +33,6 @@ module.exports = {
     'import/no-extraneous-dependencies': 0,
     'no-plusplus': 0,
     camelcase: 0,
+    'no-underscore-dangle': 0,
   },
 };

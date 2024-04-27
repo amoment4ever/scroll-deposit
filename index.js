@@ -25,11 +25,11 @@ async function start() {
     await sleep(sleepMs);
 
     try {
-      const proxy = proxies.get();
-      if (proxy?.linkToChange) {
-        await rp(proxy.linkToChange);
-        logger.info('Changed proxy ip');
-      }
+      // const proxy = proxies.get();
+      // if (proxy?.linkToChange) {
+      //   await rp(proxy.linkToChange);
+      //   logger.info('Changed proxy ip');
+      // }
     } catch (exc) {
       logger.error('Error change proxy', exc);
     }
