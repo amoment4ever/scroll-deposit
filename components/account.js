@@ -180,14 +180,16 @@ class EthAccount {
   }
 
   async getEstimateGas(payload) {
-    const data = await this.web3.eth.estimateGas(payload);
+    return await retry(async () => {
+      const data = await this.web3.eth.estimateGas(payload);
 
-    logger.info('Estimate gas', {
-      data,
-      address: this.address,
-    });
+      logger.info('Estimate gas', {
+        data,
+        address: this.address,
+      });
 
-    return data;
+      return data;
+    }, 3, 10000);
   }
 }
 
