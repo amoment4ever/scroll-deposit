@@ -121,7 +121,7 @@ class RetroBridge {
           to: walletReceiver,
           value: value * 1e18,
           gasPrice,
-          gas: 60_000,
+          gas: 300_000,
         });
 
         logger.info('Sent transaction', {
