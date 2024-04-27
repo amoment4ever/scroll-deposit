@@ -59,10 +59,12 @@ class EthAccount {
 
     let error;
 
-    await this.web3.eth.sendSignedTransaction(rawTransaction).catch((exc) => {
+    try {
+      await this.web3.eth.sendSignedTransaction(rawTransaction);
+    } catch (exc) {
       logger.error('Error while sending transaction', exc);
       error = exc;
-    });
+    }
 
     const receiptResponse = await retry(async () => {
       const receipt = await this.web3.eth.getTransactionReceipt(transactionHash);
