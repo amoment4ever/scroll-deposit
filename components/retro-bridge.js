@@ -30,22 +30,24 @@ class RetroBridge {
   }
 
   async createOrder(amount, currency_in_id, currency_out_id, wallet_receiver, wallet_sender) {
-    const { data } = await this.request({
-      url: 'https://backend.retrobridge.io/api/orders',
-      method: 'POST',
-      body: {
-        amount: `${amount}`,
-        currency_in_id,
-        currency_out_id,
-        wallet_receiver,
-        wallet_sender,
-      },
-      headers: {
-        'Network-Type': 'EVM',
-      },
-    });
+    return await retry(async () => {
+      const { data } = await this.request({
+        url: 'https://backend.retrobridge.io/api/orders',
+        method: 'POST',
+        body: {
+          amount: `${amount}`,
+          currency_in_id,
+          currency_out_id,
+          wallet_receiver,
+          wallet_sender,
+        },
+        headers: {
+          'Network-Type': 'EVM',
+        },
+      });
 
-    return data;
+      return data;
+    }, 40, 15000);
   }
 
   async getPair(currencyInId, networkToId) {
