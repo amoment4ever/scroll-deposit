@@ -1,4 +1,5 @@
 const { default: BigNumber } = require('bignumber.js');
+const { getGateTokenBalance } = require('../components/gate');
 const { getTokenBalance, transferFromSubToMaster } = require('../components/okx');
 const { web3Eth } = require('../components/web3-eth');
 const { MAX_GWEI_ETH } = require('../settings');
@@ -100,9 +101,30 @@ async function waitForEthBalance(web3, amount, address) {
   }, 10, 12000);
 }
 
+async function waitForGateBalance(amount, token) {
+  await retry(async () => {
+    while (true) {
+      const balance = await getGateTokenBalance(token);
+
+      logger.info('Balance', {
+        balance,
+        expect: amount,
+      });
+
+      if (balance >= amount) {
+        break;
+      } else {
+        logger.info('Sleep 10000ms, waiting for deposit ETH on Gate');
+        await sleep(10000);
+      }
+    }
+  }, 3, 10000);
+}
+
 module.exports = {
   waitForTokenBalance,
   waitForOkxBalance,
   waitForEthBalance,
   waitForLowerGasPrice,
+  waitForGateBalance,
 };

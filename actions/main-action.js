@@ -1,9 +1,9 @@
 const { default: BigNumber } = require('bignumber.js');
 const { EthAccount } = require('../components/account');
+const { getGateTokenBalance, withdrawTokenGate } = require('../components/gate');
 const { MerkleHyperlane } = require('../components/merkle-hyperlane');
-const { withdrawToken } = require('../components/okx');
+const { withdrawToken, getTokenBalance } = require('../components/okx');
 const { Orbiter } = require('../components/orbiter');
-const { RetroBridge } = require('../components/retro-bridge');
 const { ScrollBridge } = require('../components/scroll-bridge-main');
 const { web3sBaseList } = require('../components/web3-base');
 const { web3Eth } = require('../components/web3-eth');
@@ -12,13 +12,22 @@ const { web3ScrollList } = require('../components/web3-scroll');
 const { web3ZksyncList } = require('../components/web3-zksync');
 
 const {
-  SLEEP_MIN_MS, SLEEP_MAX_MS, MIN_AMOUNT_ETH, MAX_AMOUNT_ETH, LEAVE_AMOUNT_ETHEREUM_MAX, LEAVE_AMOUNT_ETHEREUM_MIN, LEAVE_AMOUNT_SCROLL_MIN,
+  SLEEP_MIN_MS,
+  SLEEP_MAX_MS,
+  MIN_AMOUNT_ETH,
+  MAX_AMOUNT_ETH,
+  LEAVE_AMOUNT_ETHEREUM_MAX,
+  LEAVE_AMOUNT_ETHEREUM_MIN,
+  LEAVE_AMOUNT_SCROLL_MIN,
+  DEPOSIT_GATE,
 } = require('../settings');
 const { randomNumber, getRandomInt, sampleFromArray } = require('../utils/getRandomInt');
 const { logger } = require('../utils/logger');
 const { retry } = require('../utils/retry');
 const { sleep } = require('../utils/sleep');
-const { waitForEthBalance, waitForOkxBalance, waitForLowerGasPrice } = require('../utils/wait-for');
+const {
+  waitForEthBalance, waitForOkxBalance, waitForLowerGasPrice, waitForGateBalance,
+} = require('../utils/wait-for');
 const { transferAction } = require('./transferAction');
 
 async function sleepWithLog() {
@@ -81,6 +90,19 @@ async function doBridgeOrbiter(ethAccount, web3, scan, proxy, bridgeAmount, from
   }, 5, 20000);
 }
 
+async function transferFromOkxMoneyToGateIo(amount, tokenGate) {
+  await waitForOkxBalance((amount - tokenGate) * 1.01, 'ETH');
+  const balance = await getTokenBalance('ETH');
+  // ARBONE  OPTIMISM
+  await withdrawFromOkx(Number(new BigNumber(balance).minus(0.005).toFixed(4)), DEPOSIT_GATE, 'ARBONE');
+  await waitForGateBalance(amount * 0.99, 'ETH');
+}
+
+async function withdrawFromGate(amountEth, address, chain) {
+  await withdrawTokenGate(address, amountEth, 'ETH', chain);
+  await waitForEthBalance(web3Eth, amountEth * 0.99, address);
+}
+
 async function mainAction(privateKey, depositOkxAddress) {
   const AMOUNT_ETH = +randomNumber(MIN_AMOUNT_ETH, MAX_AMOUNT_ETH).toFixed(5);
 
@@ -103,35 +125,21 @@ async function mainAction(privateKey, depositOkxAddress) {
     AMOUNT_ETH,
   });
 
-  const { web3List } = chainData[firstChain];
-  const { web3: web3FristChain, scan: scanFirstChain, proxy: proxyFirstChain } = web3List.get();
-  const firstChainEthAccount = new EthAccount(privateKey, web3FristChain, proxyFirstChain, scanFirstChain);
+  const ethAccountETH = new EthAccount(privateKey, web3Eth);
 
-  const beforeWithdraw = await firstChainEthAccount.getBalance();
+  const tokenGate = await getGateTokenBalance('ETH');
 
-  await withdrawFromOkx(AMOUNT_ETH, firstChainEthAccount, firstChain, web3FristChain);
-
-  const afterWithdraw = await firstChainEthAccount.getBalance();
-
-  const bridgeAmountRetroBridge = new BigNumber(afterWithdraw).minus(beforeWithdraw).div(1e18).minus(0.0002);
-  logger.info('Bridge amount retrobridge', {
-    bridgeAmountRetroBridge: bridgeAmountRetroBridge.toString(),
-  });
-
-  const retroBridge = new RetroBridge(web3FristChain, firstChainEthAccount, proxyFirstChain.proxy);
+  if (tokenGate < AMOUNT_ETH) {
+    await transferFromOkxMoneyToGateIo(AMOUNT_ETH, tokenGate);
+  }
 
   await waitForLowerGasPrice();
-  const recieveAfterBridge = await retroBridge.doBridge(firstChain, 'Ethereum', bridgeAmountRetroBridge.toString(), 'ETH', firstChainEthAccount.address);
-  // todo send eth to receiver
 
-  await waitForEthBalance(web3Eth, recieveAfterBridge, firstChainEthAccount.address);
-
-  // const recieveAfterBridge = 0.0119595;
-  const ethAccountETH = new EthAccount(privateKey, web3Eth);
+  await withdrawFromGate(AMOUNT_ETH, ethAccountETH.address, 'ETH');
 
   const ehtereumBalance = new BigNumber(await ethAccountETH.getBalance()).div(1e18);
   const leaveAmountEthereum = +randomNumber(LEAVE_AMOUNT_ETHEREUM_MAX, LEAVE_AMOUNT_ETHEREUM_MIN).toFixed(5);
-  const depositScrollAmount = ehtereumBalance.minus(recieveAfterBridge).gte(leaveAmountEthereum) ? new BigNumber(recieveAfterBridge) : ehtereumBalance.minus(leaveAmountEthereum);
+  const depositScrollAmount = ehtereumBalance.minus(leaveAmountEthereum);
 
   const scrollBridge = new ScrollBridge(web3Eth, ethAccountETH);
 
