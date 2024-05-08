@@ -28,6 +28,7 @@ const { sleep } = require('../utils/sleep');
 const {
   waitForEthBalance, waitForOkxBalance, waitForLowerGasPrice, waitForGateBalance,
 } = require('../utils/wait-for');
+const { depositCogFinance, depositAaveAction, wrapUnwrapAction } = require('./landing-actions');
 const { transferAction } = require('./transferAction');
 
 async function sleepWithLog() {
@@ -40,18 +41,12 @@ async function sleepWithLog() {
   await sleep(sleepMs);
 }
 
-async function withdrawFromOkx(AMOUNT_ETH, ethAccount, SOURCE_CHAIN, sourceWeb3) {
+async function withdrawFromOkx(amountEth, address, chain) {
   logger.info('Withdraw ETH from OKX', {
-    amount: AMOUNT_ETH,
+    amount: amountEth,
   });
-  await waitForOkxBalance(AMOUNT_ETH, 'ETH');
 
-  await withdrawToken(ethAccount.address, AMOUNT_ETH, 'ETH', SOURCE_CHAIN);
-
-  logger.info('Wait for ETH on balance', {
-    expect: AMOUNT_ETH * 0.95,
-  });
-  await waitForEthBalance(sourceWeb3, AMOUNT_ETH * 0.95, ethAccount.address);
+  await withdrawToken(address, amountEth, 'ETH', chain);
 }
 
 function getFristChain() {
@@ -103,6 +98,24 @@ async function withdrawFromGate(amountEth, address, chain) {
   await waitForEthBalance(web3Eth, amountEth * 0.99, address);
 }
 
+async function performActionWithProbability(action, probability, params) {
+  if (Math.random() < probability) {
+    await action(...params);
+    await sleepWithLog();
+  }
+}
+
+async function doRandomLanding(ethAccountScroll, web3Scroll, scan) {
+  const balanceForWorkWei = await ethAccountScroll.getBalance(ethAccountScroll.address);
+  const balanceForWork = new BigNumber(balanceForWorkWei).div(1e18).minus(0.01);
+
+  const acions = [depositCogFinance, depositAaveAction, wrapUnwrapAction];
+
+  await performActionWithProbability(sampleFromArray(acions), 0.3, [ethAccountScroll, web3Scroll, scan, balanceForWork]);
+  await performActionWithProbability(sampleFromArray(acions), 0.3, [ethAccountScroll, web3Scroll, scan, balanceForWork]);
+  await performActionWithProbability(sampleFromArray(acions), 0.3, [ethAccountScroll, web3Scroll, scan, balanceForWork]);
+}
+
 async function mainAction(privateKey, depositOkxAddress) {
   const AMOUNT_ETH = +randomNumber(MIN_AMOUNT_ETH, MAX_AMOUNT_ETH).toFixed(5);
 
@@ -118,10 +131,7 @@ async function mainAction(privateKey, depositOkxAddress) {
     },
   };
 
-  const firstChain = getFristChain();
-
   logger.info('Withdraw from okx to', {
-    firstChain,
     AMOUNT_ETH,
   });
 
@@ -168,9 +178,14 @@ async function mainAction(privateKey, depositOkxAddress) {
   const leaveAmountScroll = +randomNumber(LEAVE_AMOUNT_SCROLL_MIN, LEAVE_AMOUNT_ETHEREUM_MAX).toFixed(5);
   const bridgeLastChainAmount = scrollBalance.minus(depositScrollAmount).gte(leaveAmountScroll) ? new BigNumber(depositScrollAmount) : scrollBalance.minus(leaveAmountScroll);
 
-  await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(2).toFixed(0));
+  await doRandomLanding(ethAccountScroll, web3Scroll, scanScroll);
+  await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(3).toFixed(0));
   await sleepWithLog(15000);
-  await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(2).toFixed(0));
+  await doRandomLanding(ethAccountScroll, web3Scroll, scanScroll);
+  await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(3).toFixed(0));
+  await sleepWithLog(15000);
+  await doRandomLanding(ethAccountScroll, web3Scroll, scanScroll);
+  await merkleHyperlane.doBridge('SCROLL', lastChain, bridgeLastChainAmount.multipliedBy(1e18).div(3).toFixed(0));
 
   await waitForEthBalance(web3LastChain, bridgeLastChainAmount - 0.001, lastChainEthAccount.address);
 
